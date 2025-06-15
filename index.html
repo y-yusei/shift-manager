@@ -362,7 +362,8 @@
                 setActiveNavButton(viewKey);
                 
                 if (viewKey === 'dailyChart') {
-                    currentChartDateInput.value = formatDate(chartDisplayDate); 
+                    chartDisplayDate = new Date(); 
+                    document.getElementById('currentChartDate').value = formatDate(chartDisplayDate); 
                 }
                 refreshCurrentView();
             }

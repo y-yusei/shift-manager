@@ -473,7 +473,7 @@
                     options: {
                         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                         scales: {
-                            x: { type: 'time', time: { unit: 'hour', displayFormats: { hour: 'HH:mm' }, tooltipFormat: 'HH:mm' }, min: chartMinTime.getTime(), max: chartMaxTime.getTime(), title: { display: true, text: '時間' } },
+                            x: { type: 'time', time: { unit: 'hour', displayFormats: { hour: '' }, tooltipFormat: '' }, min: chartMinTime.getTime(), max: chartMaxTime.getTime(), title: { display: true, text: '時間' } },
                             y: { type: 'category', labels: yLabels, title: { display: true, text: '従業員' }, offset: true }
                         },
                         plugins: {
@@ -530,7 +530,7 @@
                         const shift = (appState.shifts[dateString] || []).find(s => s.userId === user.id);
                         let shiftText = shift ? shift.time : "";
                         if (currentUser.role === 'manager') {
-                            rowHtml += `<td><input type="text" value="${shiftText}" data-user-id="${user.id}" data-date="${dateString}" placeholder="HH:mm-HH:mm"></td>`;
+                            rowHtml += `<td><input type="text" value="${shiftText}" data-user-id="${user.id}" data-date="${dateString}" placeholder=""></td>`;
                         } else { 
                             rowHtml += `<td>${shiftText}</td>`;
                         }

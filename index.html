@@ -1,0 +1,672 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>シフト管理システム</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f1f5f9; /* slate-100 */
+        }
+        .calendar-day {
+            border: 1px solid #e2e8f0; padding: 8px; min-height: 100px; position: relative;
+            background-color: white; border-radius: 0.375rem; cursor: pointer; transition: all 0.2s ease-in-out;
+        }
+        .calendar-day:hover { transform: translateY(-2px); box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1); }
+        .calendar-day-header { font-weight: 500; margin-bottom: 4px; text-align: right; font-size: 0.875rem; }
+        .event-entry {
+            background-color: #ccfbf1;
+            color: #115e59;
+            padding: 2px 4px;
+            border-radius: 0.25rem;
+            font-size: 0.65rem;
+            margin-top: 4px;
+            display: inline-block;
+        }
+        .highlight-shift {
+            background-color: #ede9fe !important;
+            border: 2px solid #8b5cf6;
+        }
+        .today .calendar-day-header { color: #dc2626; font-weight: 700; }
+        .today { background-color: #fef2f2; }
+        .other-month { background-color: #f8fafc; color: #9ca3af; cursor: default; }
+        .other-month:hover { transform: none; box-shadow: none; }
+        .modal { display: none; position: fixed; z-index: 50; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .modal-content { background-color: #fefefe; margin: 5% auto; padding: 24px; width: 90%; max-width: 650px; border-radius: 0.5rem; box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); }
+        .delete-shift-btn { background-color: #ef4444; color: white; padding: 2px 6px; font-size: 0.7rem; border-radius: 0.25rem; }
+        .delete-shift-btn:hover { background-color: #dc2626; }
+        .chart-container { position: relative; width: 100%; max-width: 100%; margin-left: auto; margin-right: auto; height: 400px; max-height: 500px; }
+        @media (min-width: 768px) { .chart-container { height: 500px; max-height: 600px; } }
+        
+        .bulk-shift-table th, .bulk-shift-table td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; font-size: 0.8rem; white-space: nowrap;}
+        .bulk-shift-table thead th { background-color: #f1f5f9; position: sticky; top: 0; z-index: 20;}
+        .bulk-shift-table tbody th { background-color: #f8fafc; position: sticky; left: 0; z-index: 10;}
+        .bulk-shift-table thead th:first-child { left: 0; z-index: 30; } 
+        .bulk-shift-table tfoot td { background-color: #f1f5f9; }
+        .bulk-shift-table tfoot th { background-color: #e2e8f0; position: sticky; left: 0; z-index: 10; }
+
+        .bulk-shift-table input[type="text"] { width: 100%; min-width: 100px; padding: 4px; font-size: 0.75rem; border: 1px solid #e2e8f0; border-radius: 0.25rem; }
+        .shortage-input { color: #ef4444; font-weight: bold; font-size: 0.75rem; } 
+        .nav-button.active { background-color: #1d4ed8 !important; }
+        .break-time-input { font-size: 0.75rem; color: #475569; }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+    <div id="loginScreen" class="flex items-center justify-center h-screen">
+        <div class="w-full max-w-md bg-white p-8 rounded-lg shadow-md">
+            <h1 class="text-3xl font-bold text-slate-700 text-center mb-6">シフト管理システム ログイン</h1>
+            <div id="loginError" class="text-red-500 text-sm text-center mb-4 h-5"></div>
+            <div class="space-y-4">
+                <div>
+                    <label for="loginId" class="block text-sm font-medium text-slate-600">ユーザーID</label>
+                    <input type="text" id="loginId" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value="manager">
+                </div>
+                <div>
+                    <label for="loginPassword" class="block text-sm font-medium text-slate-600">パスワード</label>
+                    <input type="password" id="loginPassword" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm placeholder-slate-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" value="pass123">
+                </div>
+                <button id="loginBtn" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    ログイン
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="appContainer" class="hidden">
+        <div class="container mx-auto p-4 md:p-6 lg:p-8">
+            <header class="bg-white shadow-md rounded-lg p-6 mb-8">
+                <div class="flex flex-wrap justify-between items-center gap-4">
+                    <h1 class="text-3xl font-bold text-slate-700">シフト管理システム</h1>
+                    <div class="flex items-center gap-4">
+                        <div class="text-right">
+                            <span id="currentUserInfo" class="text-sm text-slate-500 block"></span>
+                        </div>
+                        <button id="logoutBtn" class="bg-red-500 hover:bg-red-700 text-white text-xs font-bold py-1 px-3 rounded-full">ログアウト</button>
+                    </div>
+                </div>
+                <nav class="mt-4 border-t pt-4 flex flex-wrap gap-2">
+                    <button id="showCalendarViewBtn" class="nav-button text-white font-bold py-2 px-4 rounded-lg">
+                        <i class="fas fa-calendar-alt mr-2"></i>カレンダー表示
+                    </button>
+                    <button id="showDailyChartViewBtn" class="nav-button text-white font-bold py-2 px-4 rounded-lg">
+                        <i class="fas fa-chart-bar mr-2"></i>日別グラフ表示
+                    </button>
+                    <button id="showBulkShiftViewBtn" class="nav-button text-white font-bold py-2 px-4 rounded-lg">
+                        <i class="fas fa-table mr-2"></i>一括シフト表示
+                    </button>
+                </nav>
+            </header>
+
+            <main>
+                <div id="calendarView" class="main-view bg-white shadow-md rounded-lg p-6">
+                    <div class="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+                        <h2 class="text-2xl font-semibold mb-2 md:mb-0 text-slate-700">イベント・個人シフト</h2>
+                         <div class="flex items-center gap-2">
+                            <label for="employeeHighlightSelect" class="text-sm font-medium text-slate-700">従業員ハイライト:</label>
+                            <select id="employeeHighlightSelect" class="p-2 border border-slate-300 rounded-md shadow-sm text-sm"></select>
+                        </div>
+                        <div class="flex items-center">
+                            <button id="prevMonthBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2 px-4 rounded-lg transition"><i class="fas fa-angle-left mr-1"></i>前月</button>
+                            <h3 id="calendarMonthYear" class="text-xl font-semibold text-slate-700 w-40 text-center mx-2"></h3>
+                            <button id="nextMonthBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2 px-4 rounded-lg transition">次月<i class="fas fa-angle-right ml-1"></i></button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-7 gap-2 text-center font-semibold mb-2 text-sm">
+                        <div class="text-red-600">日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div class="text-blue-600">土</div>
+                    </div>
+                    <div id="calendarGrid" class="grid grid-cols-7 gap-2"></div>
+                </div>
+
+                <div id="dailyChartView" class="main-view bg-white shadow-md rounded-lg p-6 hidden">
+                    <h2 class="text-2xl font-semibold mb-4 text-slate-700">日別シフトグラフ</h2>
+                    <div class="flex items-center mb-4">
+                        <button id="prevDayChartBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2 px-4 rounded-l-lg transition"><i class="fas fa-chevron-left"></i></button>
+                        <input type="date" id="currentChartDate" class="border p-2 text-center rounded-none w-full text-lg">
+                        <button id="nextDayChartBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2 px-4 rounded-r-lg transition"><i class="fas fa-chevron-right"></i></button>
+                    </div>
+                    <div class="chart-container mb-6">
+                        <canvas id="dailyShiftChart"></canvas>
+                    </div>
+                </div>
+                
+                <div id="bulkShiftView" class="main-view bg-white shadow-md rounded-lg p-6 hidden">
+                    <h2 class="text-2xl font-semibold mb-4 text-slate-700">一括シフト表示・作成</h2>
+                    <div class="flex flex-col sm:flex-row items-center justify-between mb-4 gap-4">
+                        <div class="flex items-center">
+                            <button id="prevMonthBulkBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2 px-3 rounded-l-lg transition"><i class="fas fa-angle-double-left"></i> 前月</button>
+                            <span id="bulkShiftMonthYear" class="font-semibold text-lg mx-4 text-slate-700"></span>
+                            <button id="nextMonthBulkBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold py-2 px-3 rounded-r-lg transition">次月 <i class="fas fa-angle-double-right"></i></button>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm text-slate-600">表示範囲:</span>
+                            <button id="toggleBulkShiftPeriodBtn" class="bg-sky-500 hover:bg-sky-600 text-white text-sm py-2 px-3 rounded-lg transition">前半 (1-15日)</button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table id="bulkShiftTable" class="min-w-full border-collapse border border-slate-300 bulk-shift-table">
+                            <thead>
+                                <tr id="bulkShiftTableDateHeader"></tr>
+                            </thead>
+                            <tbody id="bulkShiftTableBody"></tbody>
+                            <tfoot>
+                                <tr id="bulkShiftTableBreakTimesRow" class="bg-slate-50"></tr>
+                                <tr id="bulkShiftTableShortageHoursRow" class="bg-slate-50"></tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </main>
+
+            <div id="shiftDetailModal" class="modal">
+                <div class="modal-content" id="modalContent"></div>
+            </div>
+
+            <footer class="text-center text-sm text-slate-500 mt-8 pb-4">
+                &copy; <span id="currentYear"></span> シフト管理システム
+            </footer>
+        </div>
+    </div>
+    
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // --- ログイン情報 (本来はサーバーサイドで管理) ---
+        const credentials = {
+            manager: { password: 'pass123', role: 'manager' },
+            user: { password: 'pass123', role: 'employee' }
+        };
+        const staticUsers = [
+            { id: 1, name: '田中一郎', role: 'manager' },
+            { id: 2, name: '佐藤花子', role: 'employee' },
+            { id: 3, name: '鈴木三郎', role: 'employee' },
+            { id: 4, name: '山田太郎', role: 'employee' },
+            { id: 5, name: '高橋美咲', role: 'employee' },
+            { id: 6, name: '伊藤健太', role: 'employee' },
+            { id: 7, name: '渡辺直子', role: 'employee' },
+            { id: 8, name: '山本敬子', role: 'employee' },
+            { id: 9, name: '中村修平', role: 'employee' },
+            { id: 10, name: '小林明美', role: 'employee' },
+            { id: 11, name: '加藤大輔', role: 'employee' },
+        ];
+        
+        let currentUser = null; 
+
+        // --- DOM要素 ---
+        const loginScreen = document.getElementById('loginScreen');
+        const appContainer = document.getElementById('appContainer');
+        const loginIdInput = document.getElementById('loginId');
+        const loginPasswordInput = document.getElementById('loginPassword');
+        const loginBtn = document.getElementById('loginBtn');
+        const logoutBtn = document.getElementById('logoutBtn');
+        const loginError = document.getElementById('loginError');
+        
+        // --- ログイン処理 ---
+        function handleLogin() {
+            const id = loginIdInput.value.toLowerCase();
+            const password = loginPasswordInput.value;
+            const userCredential = credentials[id];
+
+            if (userCredential && userCredential.password === password) {
+                loginError.textContent = '';
+                loginScreen.classList.add('hidden');
+                appContainer.classList.remove('hidden');
+                
+                if (userCredential.role === 'manager') {
+                    currentUser = staticUsers.find(u => u.role === 'manager');
+                } else {
+                    currentUser = { id: 0, name: '従業員', role: 'employee_viewer' };
+                }
+                
+                initializeApp();
+            } else {
+                loginError.textContent = 'IDまたはパスワードが正しくありません。';
+            }
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            appContainer.classList.add('hidden');
+            loginScreen.classList.remove('hidden');
+            loginPasswordInput.value = '';
+        }
+        
+        loginBtn.addEventListener('click', handleLogin);
+        logoutBtn.addEventListener('click', handleLogout);
+        loginPasswordInput.addEventListener('keyup', (e) => { if (e.key === 'Enter') handleLogin(); });
+
+        // --- ★★★ ログイン後のアプリケーション初期化関数 ★★★ ---
+        function initializeApp() {
+            let dailyShiftChartInstance = null;
+            let appState = {
+                users: staticUsers, 
+                shifts: {
+                     '2025-05-30': [ { userId: 4, fullName: '山田太郎', time: '09:00 - 17:00', breakTime: '12:00 - 13:00', role: 'employee', notes: '棚卸し準備' } ],
+                     '2025-05-31': [ { userId: 4, fullName: '山田太郎', time: '09:00 - 17:00', breakTime: '12:00 - 13:00', role: 'employee', notes: '棚卸し' } ],
+                     '2025-06-01': [ { userId: 1, fullName: '田中一郎', time: '09:00 - 18:00', breakTime: '13:00 - 14:00', role: 'manager', notes: '週末対応' },{ userId: 2, fullName: '佐藤花子', time: '10:00 - 19:00', breakTime: '14:00 - 15:00', role: 'employee', notes: 'レジ応援' },{ userId: 5, fullName: '高橋美咲', time: '12:00 - 21:00', role: 'employee', notes: '' }, ],
+                     '2025-06-02': [ { userId: 3, fullName: '鈴木三郎', time: '09:00 - 17:00', breakTime: '12:00 - 13:00', role: 'employee', notes: '早番' },{ userId: 6, fullName: '伊藤健太', time: '13:00 - 21:00', role: 'employee', notes: '遅番' }, ],
+                    '2025-06-03': [ { userId: 4, fullName: '山田太郎', time: '09:00 - 15:00', role: 'employee', notes: '' },{ userId: 7, fullName: '渡辺直子', time: '15:00 - 21:00', breakTime: '17:30 - 18:00', role: 'employee', notes: '' }, ],
+                    '2025-06-04': [ { userId: 1, fullName: '田中一郎', time: '10:00 - 19:00', breakTime: '14:00 - 15:00', role: 'manager', notes: 'ミーティング' },{ userId: 8, fullName: '山本敬子', time: '09:00 - 17:00', breakTime: '13:00 - 13:45', role: 'employee', notes: '' },{ userId: 9, fullName: '中村修平', time: '11:00 - 20:00', role: 'employee', notes: '研修' }, ],
+                    '2025-06-05': [ { userId: 5, fullName: '高橋美咲', time: '09:00 - 18:00', breakTime: '12:00 - 13:00', role: 'employee', notes: '商品陳列' },{ userId: 11, fullName: '加藤大輔', time: '12:00 - 21:00', breakTime: '16:00 - 17:00', role: 'employee', notes: '' }, ],
+                    '2025-06-06': [ { userId: 2, fullName: '佐藤花子', time: '13:00 - 21:00', breakTime: '17:00 - 17:30', role: 'employee', notes: '' },{ userId: 10, fullName: '小林明美', time: '09:00 - 18:00', breakTime: '12:00 - 13:00', role: 'employee', notes: '新人教育' }, ],
+                    '2025-06-07': [ { userId: 1, fullName: '田中一郎', time: '09:00 - 18:00', breakTime: '12:30 - 13:30', role: 'manager', notes: '全体MTG' },{ userId: 2, fullName: '佐藤花子', time: '09:00 - 17:00', role: 'employee', notes: '早番リーダー' },{ userId: 4, fullName: '山田太郎', time: '13:00 - 21:00', breakTime: '17:00 - 17:45', role: 'employee', notes: '遅番' },{ userId: 11, fullName: '加藤大輔', time: '10:00 - 16:00', role: 'employee', notes: 'ヘルプ' } ],
+                    '2025-06-08': [ { userId: 3, fullName: '鈴木三郎', time: '10:00 - 19:00', breakTime: '14:00-15:00', role: 'employee', notes: ''},{ userId: 6, fullName: '伊藤健太', time: '09:00 - 17:00', breakTime: '12:00-13:00', role: 'employee', notes: ''} ],
+                    '2025-06-09': [ { userId: 5, fullName: '高橋美咲', time: '12:00 - 21:00', breakTime: '16:00-17:00', role: 'employee', notes: ''},{ userId: 7, fullName: '渡辺直子', time: '09:00 - 18:00', breakTime: '13:00-14:00', role: 'employee', notes: ''} ],
+                    '2025-06-10': [ { userId: 8, fullName: '山本敬子', time: '11:00 - 20:00', breakTime: '15:00-16:00', role: 'employee', notes: ''},{ userId: 9, fullName: '中村修平', time: '09:00 - 17:00', breakTime: '12:00-13:00', role: 'employee', notes: ''} ],
+                    '2025-06-11': [ { userId: 1, fullName: '田中一郎', time: '09:00 - 17:00', role: 'manager', notes: '事務作業'},{ userId: 10, fullName: '小林明美', time: '13:00 - 21:00', breakTime: '17:00-17:30', role: 'employee', notes: ''} ],
+                    '2025-06-12': [ { userId: 11, fullName: '加藤大輔', time: '10:00 - 19:00', breakTime: '14:00-15:00', role: 'employee', notes: ''},{ userId: 2, fullName: '佐藤花子', time: '09:00 - 17:00', breakTime: '12:00-13:00', role: 'employee', notes: ''} ],
+                    '2025-06-13': [ { userId: 3, fullName: '鈴木三郎', time: '12:00 - 21:00', breakTime: '16:00-17:00', role: 'employee', notes: ''},{ userId: 6, fullName: '伊藤健太', time: '09:00 - 18:00', breakTime: '13:00-14:00', role: 'employee', notes: ''} ],
+                    '2025-06-14': [ { userId: 4, fullName: '山田太郎', time: '10:00 - 19:00', breakTime: '14:00-15:00', role: 'employee', notes: '週末早番'},{ userId: 7, fullName: '渡辺直子', time: '12:00 - 21:00', role: 'employee', notes: '週末遅番'} ],
+                    '2025-06-15': [ { userId: 5, fullName: '高橋美咲', time: '09:00 - 18:00', breakTime: '13:00 - 14:00', role: 'employee', notes: '' },{ userId: 8, fullName: '山本敬子', time: '12:00 - 21:00', role: 'employee', notes: 'イベント準備' }, ],
+                    '2025-06-16': [ { userId: 3, fullName: '鈴木三郎', time: '09:00 - 12:00', role: 'employee', notes: '' },{ userId: 7, fullName: '渡辺直子', time: '14:00 - 20:00', breakTime: '17:00 - 17:30', role: 'employee', notes: '' },{ userId: 9, fullName: '中村修平', time: '10:00 - 19:00', breakTime: '14:00-15:00', role: 'employee', notes: ''}, ], 
+                    '2025-06-17': [ { userId: 4, fullName: '山田太郎', time: '17:00 - 21:00', breakTime: '18:00-18:30', role: 'employee', notes: '' },{ userId: 8, fullName: '山本敬子', time: '09:00 - 16:00', breakTime: '12:00 - 12:45', role: 'employee', notes: '' },{ userId: 10, fullName: '小林明美', time: '10:00 - 18:00', breakTime: '13:00-14:00', role: 'employee', notes: ''}, ],
+                    '2025-06-18': [ { userId: 1, fullName: '田中一郎', time: '09:00 - 17:00', role: 'manager', notes: '棚卸し指示'},{ userId: 11, fullName: '加藤大輔', time: '11:00 - 20:00', breakTime: '15:00-16:00', role: 'employee', notes: ''} ],
+                    '2025-06-19': [ { userId: 2, fullName: '佐藤花子', time: '09:00 - 18:00', breakTime: '13:00-14:00', role: 'employee', notes: ''},{ userId: 5, fullName: '高橋美咲', time: '12:00 - 21:00', breakTime: '16:00-17:00', role: 'employee', notes: ''} ],
+                    '2025-06-20': [ { userId: 1, fullName: '田中一郎', time: '終日', role: 'manager', notes: '出張'},{ userId: 9, fullName: '中村修平', time: '09:00 - 18:00', breakTime: '13:00-14:00', role: 'employee', notes: '店長不在対応'},{ userId: 10, fullName: '小林明美', time: '12:00 - 21:00', breakTime: '16:00-16:30, 19:00-19:15', role: 'employee', notes: ''},  ],
+                    '2025-06-21': [ { userId: 3, fullName: '鈴木三郎', time: '10:00 - 19:00', breakTime: '14:00-15:00', role: 'employee', notes: ''},{ userId: 6, fullName: '伊藤健太', time: '12:00 - 21:00', breakTime: '16:00-17:00', role: 'employee', notes: ''} ],
+                    '2025-06-22': [ { userId: 4, fullName: '山田太郎', time: '09:00 - 18:00', breakTime: '13:00-14:00', role: 'employee', notes: '週末応援'},{ userId: 7, fullName: '渡辺直子', time: '10:00 - 19:00', breakTime: '14:00-15:00', role: 'employee', notes: ''} ],
+                    '2025-06-23': [ { userId: 8, fullName: '山本敬子', time: '12:00 - 21:00', breakTime: '16:00-17:00', role: 'employee', notes: ''},{ userId: 11, fullName: '加藤大輔', time: '09:00 - 17:00', breakTime: '12:00-13:00', role: 'employee', notes: ''} ],
+                    '2025-06-24': [ { userId: 5, fullName: '高橋美咲', time: '10:00 - 19:00', breakTime: '14:00-15:00', role: 'employee', notes: ''},{ userId: 9, fullName: '中村修平', time: '11:00 - 20:00', breakTime: '15:00-16:00', role: 'employee', notes: ''} ],
+                    '2025-06-25': [ { userId: 1, fullName: '田中一郎', time: '09:00 - 18:00', breakTime: '13:00-14:00', role: 'manager', notes: '月末処理'},{ userId: 2, fullName: '佐藤花子', time: '12:00 - 21:00', breakTime: '16:00-17:00', role: 'employee', notes: ''} ],
+                    '2025-06-26': [ { userId: 6, fullName: '伊藤健太', time: '10:00 - 19:00', breakTime: '14:00-15:00', role: 'employee', notes: ''},{ userId: 10, fullName: '小林明美', time: '09:00 - 17:00', breakTime: '12:00-13:00', role: 'employee', notes: ''} ],
+                    '2025-06-27': [ { userId: 3, fullName: '鈴木三郎', time: '13:00 - 21:00', breakTime: '17:00-17:30', role: 'employee', notes: ''},{ userId: 7, fullName: '渡辺直子', time: '09:00 - 18:00', breakTime: '13:00-14:00', role: 'employee', notes: ''} ],
+                    '2025-06-28': [ { userId: 4, fullName: '山田太郎', time: '10:00 - 19:00', breakTime: '14:00-15:00', role: 'employee', notes: '月末週末'},{ userId: 8, fullName: '山本敬子', time: '12:00 - 21:00', breakTime: '16:00-17:00', role: 'employee', notes: ''} ],
+                    '2025-06-29': [ { userId: 5, fullName: '高橋美咲', time: '09:00 - 18:00', breakTime: '13:00-14:00', role: 'employee', notes: ''},{ userId: 11, fullName: '加藤大輔', time: '10:00 - 19:00', breakTime: '14:00-15:00', role: 'employee', notes: ''} ],
+                    '2025-06-30': [ { userId: 1, fullName: '田中一郎', time: '09:00 - 17:00', role: 'manager', notes: '月末締め'},{ userId: 9, fullName: '中村修平', time: '12:00 - 21:00', breakTime: '16:00-17:00', role: 'employee', notes: ''} ]
+                },
+                manualBreaks: {},
+                manualShortages: {},
+            };
+            
+            const mainViews = {
+                calendar: document.getElementById('calendarView'),
+                dailyChart: document.getElementById('dailyChartView'),
+                bulkShift: document.getElementById('bulkShiftView'),
+            };
+            const navButtons = { 
+                calendar: document.getElementById('showCalendarViewBtn'), 
+                dailyChart: document.getElementById('showDailyChartViewBtn'), 
+                bulkShift: document.getElementById('showBulkShiftViewBtn')
+            };
+            
+            const shiftDetailModal = document.getElementById('shiftDetailModal');
+            const modalContent = document.getElementById('modalContent');
+            
+            document.getElementById('currentYear').textContent = new Date().getFullYear();
+
+            const calendarGrid = document.getElementById('calendarGrid');
+            const calendarMonthYear = document.getElementById('calendarMonthYear');
+            const employeeHighlightSelect = document.getElementById('employeeHighlightSelect');
+            const prevMonthBtn = document.getElementById('prevMonthBtn');
+            const nextMonthBtn = document.getElementById('nextMonthBtn');
+
+            const dailyShiftChartCanvas = document.getElementById('dailyShiftChart');
+            const currentChartDateInput = document.getElementById('currentChartDate');
+            const prevDayChartBtn = document.getElementById('prevDayChartBtn');
+            const nextDayChartBtn = document.getElementById('nextDayChartBtn');
+
+            const bulkShiftMonthYearDisplay = document.getElementById('bulkShiftMonthYear');
+            const prevMonthBulkBtn = document.getElementById('prevMonthBulkBtn');
+            const nextMonthBulkBtn = document.getElementById('nextMonthBulkBtn');
+            const toggleBulkShiftPeriodBtn = document.getElementById('toggleBulkShiftPeriodBtn');
+            const bulkShiftTable = document.getElementById('bulkShiftTable');
+
+            let calendarDisplayDate = new Date(2025, 5, 1);
+            let chartDisplayDate = new Date(2025, 5, 1);
+            let bulkViewDisplayMonth = new Date(2025, 5, 1);
+            let bulkViewIsFirstHalf = true;
+            let selectedEmployeeForHighlight = null;
+            
+            const dummyEvents = { 
+                '2025-06-01': { text: '特売日', icon: 'fas fa-tags' },
+                '2025-06-15': { text: '棚卸し', icon: 'fas fa-boxes-stacked' },
+            };
+
+            function formatTime(date) { return `${('0' + date.getHours()).slice(-2)}:${('0' + date.getMinutes()).slice(-2)}`; }
+            function formatDate(date) { return `${date.getFullYear()}-${('0' + (date.getMonth() + 1)).slice(-2)}-${('0' + date.getDate()).slice(-2)}`; }
+            function formatDateToJapanese(date) { return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日 (${['日', '月', '火', '水', '木', '金', '土'][date.getDay()]})`; }
+            function formatDateToJapaneseShort(date) { return `${date.getMonth() + 1}/${date.getDate()}(${['日', '月', '火', '水', '木', '金', '土'][date.getDay()]})`;}
+            function isToday(date) { const today = new Date(); return date.toDateString() === today.toDateString(); }
+            function parseTimeToDate(timeStr, baseDate) {
+                if (!timeStr || !timeStr.includes(':')) return null;
+                const [hours, minutes] = timeStr.split(':').map(Number);
+                const date = new Date(baseDate);
+                date.setHours(hours, minutes, 0, 0);
+                return date;
+            }
+            
+            function updateUserInfo() {
+                 document.getElementById('currentUserInfo').innerHTML = `ログイン中: <span class="font-bold">${currentUser.name}</span>`;
+            }
+
+            function setActiveNavButton(activeViewKey) {
+                Object.keys(navButtons).forEach(key => {
+                    const button = navButtons[key];
+                    button.classList.remove('bg-blue-700', 'bg-purple-700', 'bg-teal-700', 'active');
+                    let baseColor = key === 'calendar' ? 'bg-blue-600' : key === 'dailyChart' ? 'bg-purple-600' : 'bg-teal-600';
+                    button.classList.add(baseColor);
+                    if (key === activeViewKey) {
+                        button.classList.remove(baseColor);
+                        button.classList.add(key === 'calendar' ? 'bg-blue-700' : key === 'dailyChart' ? 'bg-purple-700' : 'bg-teal-700', 'active');
+                    }
+                });
+            }
+
+            function switchView(viewKey) {
+                Object.keys(mainViews).forEach(key => mainViews[key].classList.toggle('hidden', key !== viewKey));
+                setActiveNavButton(viewKey);
+                
+                if (viewKey === 'dailyChart') {
+                    currentChartDateInput.value = formatDate(chartDisplayDate); 
+                }
+                refreshCurrentView();
+            }
+            
+            function refreshCurrentView() {
+                if (!mainViews.calendar.classList.contains('hidden')) renderCalendar();
+                else if (!mainViews.dailyChart.classList.contains('hidden')) renderDailyShiftChart();
+                else if (!mainViews.bulkShift.classList.contains('hidden')) renderBulkShiftTable();
+            }
+
+            function renderCalendar() {
+                if (!calendarGrid) return; 
+                calendarGrid.innerHTML = '';
+                const year = calendarDisplayDate.getFullYear();
+                const month = calendarDisplayDate.getMonth();
+                calendarMonthYear.textContent = `${year}年 ${month + 1}月`;
+                
+                const currentSelected = employeeHighlightSelect.value;
+                employeeHighlightSelect.innerHTML = `<option value="">全員表示</option>` + appState.users.map(u => `<option value="${u.id}">${u.name}</option>`).join('');
+                employeeHighlightSelect.value = currentSelected;
+                
+                const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+                const startDayOfWeek = new Date(year, month, 1).getDay();
+
+                for (let i = 0; i < startDayOfWeek; i++) {
+                    calendarGrid.insertAdjacentHTML('beforeend', `<div class="other-month"></div>`);
+                }
+
+                for (let day = 1; day <= lastDayOfMonth; day++) {
+                    const date = new Date(year, month, day);
+                    const dateString = formatDate(date);
+                    const dayCell = document.createElement('div');
+                    dayCell.className = 'calendar-day';
+                    if(isToday(date)) dayCell.classList.add('today');
+
+                    const shiftsForDay = appState.shifts[dateString] || [];
+                    if (selectedEmployeeForHighlight && shiftsForDay.some(s => s.userId === selectedEmployeeForHighlight)) {
+                        dayCell.classList.add('highlight-shift');
+                    }
+                    
+                    let cellContent = `<div class="calendar-day-header">${day}</div>`;
+                    const eventForDay = dummyEvents[dateString];
+                    if (eventForDay) {
+                        cellContent += `<div class="event-entry"><i class="${eventForDay.icon} mr-1"></i>${eventForDay.text}</div>`;
+                    }
+                    dayCell.innerHTML = cellContent;
+                    dayCell.addEventListener('click', () => showShiftDetailModal(date));
+                    calendarGrid.appendChild(dayCell);
+                }
+            }
+
+            function renderDailyShiftChart() {
+                if (!dailyShiftChartCanvas) return;
+                const dateString = formatDate(chartDisplayDate);
+                const shiftsForDay = appState.shifts[dateString] || [];
+                
+                if (dailyShiftChartInstance) {
+                    dailyShiftChartInstance.destroy();
+                    dailyShiftChartInstance = null;
+                }
+
+                const ctx = dailyShiftChartCanvas.getContext('2d');
+                ctx.clearRect(0, 0, dailyShiftChartCanvas.width, dailyShiftChartCanvas.height);
+                
+                if (shiftsForDay.length === 0) {
+                    ctx.font = '16px Inter, sans-serif';
+                    ctx.fillStyle = '#64748b';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('この日のシフトはありません', dailyShiftChartCanvas.width / 2, 50);
+                    return;
+                }
+                
+                const chartDatasetData = [];
+                const yLabels = []; 
+
+                shiftsForDay.forEach(shift => {
+                    if (!yLabels.includes(shift.fullName)) yLabels.push(shift.fullName);
+                    if (typeof shift.time !== 'string' || !shift.time.includes(' - ')) return; 
+                    
+                    const mainStartDate = parseTimeToDate(shift.time.split(' - ')[0], chartDisplayDate);
+                    const mainEndDate = parseTimeToDate(shift.time.split(' - ')[1], chartDisplayDate);
+                    const bgColor = shift.role === 'manager' ? 'rgba(250, 204, 21, 0.7)' : 'rgba(59, 130, 246, 0.7)';
+                    if (!mainStartDate || !mainEndDate) return;
+
+                    if (shift.breakTime && shift.breakTime.includes(' - ')) {
+                        const breakStartDate = parseTimeToDate(shift.breakTime.split(' - ')[0], chartDisplayDate);
+                        const breakEndDate = parseTimeToDate(shift.breakTime.split(' - ')[1], chartDisplayDate);
+                        if (breakStartDate && breakEndDate && breakStartDate < mainEndDate && breakEndDate > mainStartDate && breakStartDate < breakEndDate) {
+                            if (mainStartDate < breakStartDate) chartDatasetData.push({ x: [mainStartDate.getTime(), breakStartDate.getTime()], y: shift.fullName, originalShift: shift, bgColor: bgColor });
+                            if (breakEndDate < mainEndDate) chartDatasetData.push({ x: [breakEndDate.getTime(), mainEndDate.getTime()], y: shift.fullName, originalShift: shift, bgColor: bgColor });
+                        } else { 
+                            chartDatasetData.push({ x: [mainStartDate.getTime(), mainEndDate.getTime()], y: shift.fullName, originalShift: shift, bgColor: bgColor });
+                        }
+                    } else {
+                        chartDatasetData.push({ x: [mainStartDate.getTime(), mainEndDate.getTime()], y: shift.fullName, originalShift: shift, bgColor: bgColor });
+                    }
+                });
+                yLabels.sort();
+
+                const todayForChart = new Date(chartDisplayDate);
+                const chartMinTime = new Date(todayForChart); chartMinTime.setHours(9,0,0,0); 
+                const chartMaxTime = new Date(todayForChart); chartMaxTime.setHours(21,0,0,0); 
+
+                dailyShiftChartInstance = new Chart(dailyShiftChartCanvas, {
+                    type: 'bar',
+                    data: { datasets: [{ label: '勤務時間', data: chartDatasetData, backgroundColor: chartDatasetData.map(d => d.bgColor), borderColor: chartDatasetData.map(d => d.bgColor.replace('0.7', '1')), borderWidth: 1, barPercentage: 0.6, categoryPercentage: 0.7 }] },
+                    options: {
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        scales: {
+                            x: { type: 'time', time: { unit: 'hour', displayFormats: { hour: 'HH:mm' }, tooltipFormat: 'HH:mm' }, min: chartMinTime.getTime(), max: chartMaxTime.getTime(), title: { display: true, text: '時間' } },
+                            y: { type: 'category', labels: yLabels, title: { display: true, text: '従業員' }, offset: true }
+                        },
+                        plugins: {
+                            tooltip: {
+                                callbacks: {
+                                    label: function(context) {
+                                        const dp = context.dataset.data[context.dataIndex]; const os = dp.originalShift;
+                                        let l = `${formatTime(new Date(context.raw[0]))} - ${formatTime(new Date(context.raw[1]))}`;
+                                        if (os.notes) l += ` (備考: ${os.notes})`; if (os.breakTime) l += ` (休憩: ${os.breakTime})`;
+                                        return l;
+                                    },
+                                    title: (items) => items[0].label
+                                }
+                            }, legend: { display: false }
+                        }
+                    }
+                });
+            }
+
+            function renderBulkShiftTable() {
+                const dateHeader = document.getElementById('bulkShiftTableDateHeader');
+                const body = document.getElementById('bulkShiftTableBody');
+                const breakRow = document.getElementById('bulkShiftTableBreakTimesRow');
+                const shortageRow = document.getElementById('bulkShiftTableShortageHoursRow');
+                if(!dateHeader || !body || !breakRow || !shortageRow) return;
+
+                dateHeader.innerHTML = '';
+                body.innerHTML = '';
+                breakRow.innerHTML = '';
+                shortageRow.innerHTML = ''; 
+
+                const days = [];
+                let headerHtml = '<th>従業員名</th>';
+                const year = bulkViewDisplayMonth.getFullYear();
+                const month = bulkViewDisplayMonth.getMonth();
+                const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+                
+                const startDay = bulkViewIsFirstHalf ? 1 : 16;
+                const endDayLoop = bulkViewIsFirstHalf ? 15 : lastDayOfMonth;
+
+                for (let day = startDay; day <= endDayLoop; day++) {
+                    if (day > lastDayOfMonth) break; 
+                    const currentDate = new Date(year, month, day);
+                    days.push(formatDate(currentDate));
+                    headerHtml += `<th>${formatDateToJapaneseShort(currentDate)}</th>`;
+                }
+                dateHeader.innerHTML = headerHtml;
+                
+                const displayableUsers = [...appState.users];
+
+                displayableUsers.forEach(user => {
+                    let rowHtml = `<tr><th class="font-semibold ${user.role === 'manager' ? 'text-amber-700' : ''}">${user.name}</th>`;
+                    days.forEach((dateString) => {
+                        const shift = (appState.shifts[dateString] || []).find(s => s.userId === user.id);
+                        let shiftText = shift ? shift.time : "";
+                        if (currentUser.role === 'manager') {
+                            rowHtml += `<td><input type="text" value="${shiftText}" data-user-id="${user.id}" data-date="${dateString}" placeholder="HH:mm-HH:mm"></td>`;
+                        } else { 
+                            rowHtml += `<td>${shiftText}</td>`;
+                        }
+                    });
+                    rowHtml += '</tr>';
+                    body.innerHTML += rowHtml;
+                });
+                
+                let breakTimesRowHtml = '<tr><th class="font-semibold">休憩</th>'; 
+                days.forEach(dateString => {
+                    const manuallyEnteredBreak = appState.manualBreaks[dateString] || '';
+                    if (currentUser.role === 'manager') {
+                         breakTimesRowHtml += `<td><input type="text" class="break-time-input" value="${manuallyEnteredBreak}" placeholder="" data-date="${dateString}"></td>`;
+                    } else {
+                        breakTimesRowHtml += `<td class="break-time-display">${manuallyEnteredBreak || ''}</td>`; 
+                    }
+                });
+                breakRow.innerHTML = breakTimesRowHtml;
+
+                let shortageRowHtml = '<tr><th class="font-semibold">不足</th>'; 
+                days.forEach(dateString => {
+                    const manuallyEnteredShortage = appState.manualShortages[dateString] || '';
+                    if (currentUser.role === 'manager') {
+                         shortageRowHtml += `<td><input type="text" class="shortage-input" value="${manuallyEnteredShortage}" placeholder="" data-date="${dateString}"></td>`;
+                    } else {
+                        shortageRowHtml += `<td class="shortage-input">${manuallyEnteredShortage || ''}</td>`; 
+                    }
+                });
+                shortageRow.innerHTML = shortageRowHtml;
+
+
+                if (currentUser.role === 'manager') {
+                    body.querySelectorAll('input[type="text"]').forEach(input => input.addEventListener('change', handleBulkShiftInputChange));
+                    shortageRow.querySelectorAll('input[type="text"].shortage-input').forEach(input => input.addEventListener('change', handleManualShortageInputChange));
+                    breakRow.querySelectorAll('input[type="text"].break-time-input').forEach(input => input.addEventListener('change', handleManualBreakInputChange));
+                }
+                document.getElementById('bulkShiftMonthYear').textContent = `${bulkViewDisplayMonth.getFullYear()}年 ${bulkViewDisplayMonth.getMonth() + 1}月`;
+                document.getElementById('toggleBulkShiftPeriodBtn').textContent = bulkViewIsFirstHalf ? '前半 (1-15日)' : `後半 (16-${lastDayOfMonth}日)`;
+            }
+            
+            function updateUserInfo() {
+                 document.getElementById('currentUserInfo').innerHTML = `ログイン中: <span class="font-bold">${currentUser.name}</span>`;
+            }
+            
+            function handleManualShortageInputChange(event) {
+                appState.manualShortages[event.target.dataset.date] = event.target.value.trim();
+            }
+            function handleManualBreakInputChange(event) {
+                appState.manualBreaks[event.target.dataset.date] = event.target.value.trim();
+            }
+            function handleBulkShiftInputChange(event) {
+                const { userId, date } = event.target.dataset;
+                const time = event.target.value.trim();
+                
+                if (!appState.shifts[date]) appState.shifts[date] = [];
+                let shiftIndex = appState.shifts[date].findIndex(s => s.userId == userId);
+
+                if (time) {
+                    const user = appState.users.find(u => u.id == userId);
+                    const newShift = { 
+                        userId: parseInt(userId),
+                        fullName: user.name,
+                        role: user.role,
+                        time: time, 
+                        breakTime: (shiftIndex > -1 ? appState.shifts[date][shiftIndex].breakTime : undefined),
+                        notes: (shiftIndex > -1 ? appState.shifts[date][shiftIndex].notes : '')
+                    };
+                    if (shiftIndex > -1) {
+                        appState.shifts[date][shiftIndex] = newShift;
+                    } else {
+                        appState.shifts[date].push(newShift);
+                    }
+                } else {
+                    if (shiftIndex > -1) appState.shifts[date].splice(shiftIndex, 1);
+                }
+                renderBulkShiftTable();
+            }
+            
+            function showShiftDetailModal(date) {
+                 modalContent.innerHTML = ''; 
+                const dateString = formatDate(date);
+                const shiftsForDay = appState.shifts[dateString] || [];
+
+                let contentHtml = `<div class="flex justify-between items-start mb-4"><h3 class="text-2xl font-bold text-slate-700">${formatDateToJapanese(date)}</h3><button id="closeModalBtn" class="text-2xl text-slate-500 hover:text-slate-800">&times;</button></div>`;
+                contentHtml += '<div class="mb-6"><h4 class="font-semibold text-lg text-slate-600 border-b pb-1 mb-3">確定シフト</h4>';
+                if (shiftsForDay.length > 0) {
+                    shiftsForDay.forEach((s, index) => {
+                        contentHtml += `<div class="p-3 rounded-md mb-2 flex justify-between items-center ${s.role === 'manager' ? 'bg-yellow-100' : 'bg-blue-100'}"><div><p class="font-semibold ${s.role === 'manager' ? 'text-yellow-800' : 'text-blue-800'}">${s.fullName}</p><p class="text-sm ${s.role === 'manager' ? 'text-yellow-700' : 'text-blue-700'}">${s.time}</p>${s.breakTime ? `<p class="text-xs text-gray-500">休憩: ${s.breakTime}</p>` : ''}${s.notes ? `<p class="text-xs text-gray-600 mt-1">備考: ${s.notes}</p>` : ''}</div>${currentUser.role === 'manager' ? `<button class="delete-shift-btn" data-shift-index="${index}" data-date-string="${dateString}"><i class="fas fa-trash-alt"></i></button>` : ''}</div>`;
+                    });
+                } else { contentHtml += '<p class="text-slate-500 text-sm">確定シフトはありません。</p>'; }
+                contentHtml += '</div>';
+
+                if (currentUser.role === 'manager') {
+                    contentHtml += `<div><h4 class="font-semibold text-lg text-slate-600 border-b pb-1 mb-3">新しいシフトを追加</h4><div class="space-y-3"><div><label for="newShiftEmployee" class="block text-sm font-medium text-slate-700 mb-1">従業員:</label><select id="newShiftEmployee" class="w-full p-2 border border-slate-300 rounded-md shadow-sm text-sm">${appState.users.map(u => `<option value="${u.id}">${u.name}</option>`).join('')}</select></div><div class="grid grid-cols-2 gap-3"><div><label for="newShiftStartTime" class="block text-sm font-medium text-slate-700 mb-1">勤務開始:</label><input type="time" id="newShiftStartTime" class="w-full p-2 border border-slate-300 rounded-md shadow-sm text-sm"></div><div><label for="newShiftEndTime" class="block text-sm font-medium text-slate-700 mb-1">勤務終了:</label><input type="time" id="newShiftEndTime" class="w-full p-2 border border-slate-300 rounded-md shadow-sm text-sm"></div></div><div class="grid grid-cols-2 gap-3"><div><label for="newBreakStartTime" class="block text-sm font-medium text-slate-700 mb-1">休憩開始 (任意):</label><input type="time" id="newBreakStartTime" class="w-full p-2 border border-slate-300 rounded-md shadow-sm text-sm"></div><div><label for="newBreakEndTime" class="block text-sm font-medium text-slate-700 mb-1">休憩終了 (任意):</label><input type="time" id="newBreakEndTime" class="w-full p-2 border border-slate-300 rounded-md shadow-sm text-sm"></div></div><div><label for="newShiftNotes" class="block text-sm font-medium text-slate-700 mb-1">備考 (任意):</label><input type="text" id="newShiftNotes" class="w-full p-2 border border-slate-300 rounded-md shadow-sm text-sm" placeholder="例: 早番リーダー"></div><button id="addShiftBtn" data-date-string="${dateString}" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md transition"><i class="fas fa-plus-circle mr-1"></i> シフトを追加</button></div></div>`;
+                }
+                modalContent.innerHTML = contentHtml;
+                document.getElementById('closeModalBtn').addEventListener('click', () => shiftDetailModal.style.display = 'none');
+                
+                if (currentUser.role === 'manager') {
+                    modalContent.querySelectorAll('.delete-shift-btn').forEach(button => {
+                        button.addEventListener('click', (e) => {
+                            // ... 削除処理 ...
+                        });
+                    });
+
+                    const addShiftBtn = modalContent.querySelector('#addShiftBtn');
+                    if(addShiftBtn) {
+                        addShiftBtn.addEventListener('click', (e) => {
+                            // ... 追加処理 ...
+                        });
+                    }
+                }
+                shiftDetailModal.style.display = 'block';
+            }
+            
+            updateUserInfo();
+            navButtons.calendar.addEventListener('click', () => switchView('calendar'));
+            navButtons.dailyChart.addEventListener('click', () => switchView('dailyChart'));
+            navButtons.bulkShift.addEventListener('click', () => switchView('bulkShift'));
+
+            prevMonthBtn.addEventListener('click', () => { calendarDisplayDate.setMonth(calendarDisplayDate.getMonth() - 1); renderCalendar(); });
+            nextMonthBtn.addEventListener('click', () => { calendarDisplayDate.setMonth(calendarDisplayDate.getMonth() + 1); renderCalendar(); });
+            employeeHighlightSelect.addEventListener('change', (e) => {
+                selectedEmployeeForHighlight = e.target.value ? parseInt(e.target.value) : null;
+                renderCalendar();
+            });
+            prevDayChartBtn.addEventListener('click', () => { chartDisplayDate.setDate(chartDisplayDate.getDate() - 1); currentChartDateInput.value = formatDate(chartDisplayDate); renderDailyShiftChart(); });
+            nextDayChartBtn.addEventListener('click', () => { chartDisplayDate.setDate(chartDisplayDate.getDate() + 1); currentChartDateInput.value = formatDate(chartDisplayDate); renderDailyShiftChart(); });
+            currentChartDateInput.addEventListener('change', (e) => { chartDisplayDate = new Date(e.target.value + "T00:00:00"); renderDailyShiftChart(); });
+            prevMonthBulkBtn.addEventListener('click', () => { bulkViewDisplayMonth.setMonth(bulkViewDisplayMonth.getMonth() - 1); renderBulkShiftTable(); });
+            nextMonthBulkBtn.addEventListener('click', () => { bulkViewDisplayMonth.setMonth(bulkViewDisplayMonth.getMonth() + 1); renderBulkShiftTable(); });
+            toggleBulkShiftPeriodBtn.addEventListener('click', () => { bulkViewIsFirstHalf = !bulkViewIsFirstHalf; renderBulkShiftTable(); });
+            shiftDetailModal.addEventListener('click', (event) => { if (event.target === shiftDetailModal) shiftDetailModal.style.display = 'none'; });
+            
+            switchView('calendar');
+        }
+    });
+    </script>
+</body>
+</html>

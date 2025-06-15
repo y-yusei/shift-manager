@@ -1,0 +1,13 @@
+{
+  "name": "my-shift-backend",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250606.0",
+    "wrangler": "^3.64.0"
+  }
+}

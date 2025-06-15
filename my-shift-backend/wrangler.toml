@@ -1,0 +1,9 @@
+name = "my-shift-backend"
+main = "src/index.ts"
+compatibility_date = "2025-06-06"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "31shift-db"
+database_id = "2eff9b20-1cb4-486d-80e9-17e278943f70"
+
